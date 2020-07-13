@@ -1,0 +1,952 @@
+---
+title: "Dashboard Análise heart"
+author: "Andressa de Souza Freitas"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    source_code: embed
+    social: menu
+    navbar:
+      - {title: "Linkedin", href: "https://www.linkedin.com/in/andressa-de-souza-freitas-697195177/", align:
+       rigth }
+    theme: united
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+# Mudando o Diretório de trabalho
+setwd("C:/Users/Andressa/Desktop/TRABALHO/PROJETOS/PORTIFÓLIO/Análise_Heart")
+
+# Instalando os pacotes para o projeto
+
+listofPackages <- c("dplyr","stringr","lubridate","ggplot2","ggthemes",
+                    "tidyr","readr","xaringan","tidyverse","data.table", "mfx", 
+                    "Amelia","caret","reshape","randomForest","e1071", "faraway", 
+                    "rmarkdown", "flexdashboard", "shiny", "plotly", "DT", "plyr", "stargazer",
+                    "RColorBrewer","naniar", "ROCR","svglite","mice", "ResourceSelection")
+
+packages <- function(listofPackages){
+           new.packages <- listofPackages[!(listofPackages %in% installed.packages()[, "Package"])]
+           if (length(new.packages))
+                    install.packages(new.packages, dependencies = TRUE)
+           sapply(listofPackages, require, character.only = TRUE)	
+}
+lapply(listofPackages, library, character.only = TRUE)
+(listofPackages)
+
+# Carregando os pacotes
+lapply(listofPackages, require, character.only = TRUE)
+
+# Importando o banco de dados
+heart <- fread("heart.csv", head = T, sep = ",", dec=".", encoding = 'UTF-8')
+```
+
+
+# Visualização dos dados {data-icon="fa-signal" data-navmenu="Manipulação dos Dados"}
+
+column {data-width=500}
+-----------------------------------------------------------------------
+
+### Banco de dados "heart"
+
+```{r}
+DT::datatable(heart[1:303, c(14, 1:13)], rownames = FALSE)
+```
+
+
+column
+-----------------------------------------------------------------------
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE, include=FALSE}
+# Visualizando os dados e sua estrutura
+str(heart)
+```
+> **INTRODUÇÃO**
+>
+>
+> Este estudo tem como objetivo identificar os fatores que influenciam na presença de doenças do coração. A princípio, iremos fazer uma análise descritiva para termos uma visão mais detalhada do banco e, em seguida, iremos fazer uma Análise de Regressão Logística, pois a variável resposta diagnóstico (target) é uma variável binária (do tipo 0 ou 1, que nesse caso, representa saudável (0) ou doente (1)).
+>
+> O banco de dados "heart" possui 303 observações e 14 variáveis.
+>
+> **Descrição do banco heart:**
+>
+- age (Idade): variando de 29 a 77 anos;
+- sex (sexo): Homem (1) e Mulher (0);
+- cp (tipo de dor no peito): varia 0 a 3, sendo angina típica, angina atípica, sem dor anginal e assintomático, respectivamente;
+- trestbps (pressão arterial em repouso): medida em mm Hg na admissão no hospital;
+- chol (nível de colesterol sérico): medida em mg / dl;
+- fbs (concentração de açúcar no sangue em jejum & gt): 1 = verdadeiro; 0 = falso, 120 mg / dl;
+- restecg (resultados eletrocardiográficos em repouso): 0 a 2, sendo Normal, com onda ST-T anormal e mostrando provável (ou definida) hipertrofia do ventrículo esquerdo, respectivamente;
+- thalach: frequência cardíaca máxima alcançada;
+- exang (angina induzida pelo exercício): 1 = sim; 0 = não;
+- oldpeak: Depressão ST induzida por exercício em relação ao repouso;
+- slope (a inclinação do segmento ST do pico do exercício): varia de 0 a 2, Inclinado para cima, Plano e Inclinado para baixo, respectivamente;
+- ca (número de vasos principais (0-4) coloridos por flourosopy): varia de 0 a 4;
+- thal (Talassemias): 3 = normal; 6 = defeito fixo; 7 = defeito reversível;
+- target (objetivo/diagnóstico): 0 = Saudável; 1 = Doente.
+
+
+# Transformação e limpeza dos dados {data-icon="fa-signal" data-navmenu="Manipulação dos Dados"}
+
+## Sidebar {.sidebar}
+
+**TRATAMENTO DOS DADOS**
+
+
+Nem todos os dados foram reconhecidos pelo R Studio da forma como deveriam com relação ao seus tipos. Praticamente todos os dados foram reconhecidos com se fossem do tipo inteiro. Então, precisamos alterar o tipo desses dados para o tipo correto.
+
+Nesta transformação foram feitas as seguintes mudanças: 
+
+- A variável sexo deixou de ser 0 e 1 e passou a ser "Mulher" e "Homem", nesta ordem;
+- A variável cp foi trasnformada em fator;
+- A variável fbs deixou de ser 0 e 1 e passou a ser "Falso" e "Verdadeiro";
+- A variável restecg foi trasnformada em fator;
+- A variável exang deixou de ser 0 e 1 e passou a ser "Não" e "Sim";
+- As variáveis slope, ca e thal foram transformadas em fator, e;
+- A variável target deixou de ser 0 e 1 passou ser "Saudável" e "Doente";
+
+
+```{r, include=FALSE}
+sapply(heart, function(x) sum(is.na(x)))
+```
+
+column {data-width=500}
+-----------------------------------------------------------------------
+ 
+### Verificando valores missing
+
+```{r}
+missmap(heart, main = "Valores Missing Observados")
+```
+
+> Podemos observar atráves do gráfico que não há dados faltantes.
+
+
+```{r, include=FALSE}
+# Convertendo os atributos sex, cp, fbs, restecg, slope, ca, thal e target.
+heart <- heart %>%
+          mutate(sex = cut(sex, c(-1,0,1), labels = c("Mulher", "Homem")),
+                 cp = as.factor(cp),
+                 fbs = cut(fbs, c(-1,0,1), labels = c("Falso", "Verdadeiro")),
+                 restecg = as.factor(restecg),
+                 exang = cut(exang, c(-1,0,1), labels = c("Não", "Sim")),
+                 slope = as.factor(slope),
+                 ca = as.factor(ca),
+                 thal = as.factor(thal),
+                 target = cut(target, c(-1,0,1), labels = c("Saudável", "Doente")))
+
+# Inserindo nova coluna "Categ_Idade"
+heart = heart %>% 
+          mutate(Categ_Idade = factor(case_when(age > 0 & age <= 30 ~ "Jovem", 
+                                                age > 30 & age <= 50 ~ "Adulto", 
+                                                age >= 50 ~ "Idoso"), levels = c("Jovem", "Adulto", "Idoso")))
+
+
+heart %>% head()
+```
+
+column {data-width=500}
+-----------------------------------------------------------------------
+ 
+### Dados após as transformações
+
+```{r}
+DT::datatable(heart[1:303, c(14, 1:13)], rownames = FALSE)
+```
+
+
+# Análise Descritiva das Variáveis Categóricas 1 {data-icon="fa-signal" data-navmenu="Análise Descritiva"}
+
+## Sidebar {.sidebar}
+
+**DESCREVENDO OS DADOS:**
+
+- Idade (age): 68,65% dos pacientes são idosos, 31,02% são adultos e 0,33% é jovem.
+
+- Sexo (sex): 68,32% são homens e 31,68% são mulheres.
+
+- Tipo de dor no peito (cp): 47,19% possuem angina típica (0) 28,71% não possuem dor anginal (2), 16,5% possuem angina atípica (1) e, 7,59% são ssintomáticos (3)
+ 
+- Concentração de açúcar no sangue (fbs): 85,15% dos pacientes deram falso e 14,85% deram verdadeiro para fbs. 
+
+
+
+```{r, include=FALSE}
+# Funções de tabelas
+
+# Tabela de frequência
+tabFreqCat <- function(x){
+  a = table(x)
+  b = round(prop.table(a) *100, 2)
+  
+  return(b)
+}
+
+# Tabela Descritiva
+tabelaFreq <- function(x){
+  
+  tabela = data.frame(Minimo = quantile(x)[1],
+                      Quartil1 = quantile(x)[2],
+                      Quartil2 = quantile(x)[3],
+                      Media = round(mean(x), 2),
+                      Desvio = round(sd(x), 2),
+                      Quartil3 = quantile(x)[4],
+                      Maximo = quantile(x)[5],
+                      row.names = NULL)
+  
+  return(tabela)
+}
+```
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+
+```{r, include=FALSE}
+# Tabela de frequência da Idade
+tb_Idade = rbind(tabFreqCat(heart$Categ_Idade)); tb_Idade
+```
+
+
+### Gráfico da Idade
+```{r}
+# Gráfico
+renderPlotly ({
+graf_Idade <- ggplot(data = heart, 
+          aes(x = Categ_Idade)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "Categoria de Idade", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por Idade")
+ggplotly(graf_Idade)
+})
+```
+
+
+
+```{r, include=FALSE}
+# Tabela de frequência da variável Sexo
+tb_Sexo = rbind(tabFreqCat(heart$sex)); tb_Sexo
+```
+
+
+### Gráfico do Sexo
+```{r}
+# Gráfico
+renderPlotly ({
+graf_Sexo <- ggplot(data = heart, 
+          aes(x = sex)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "Sexo", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por Sexo")
+ggplotly(graf_Sexo)
+})
+```
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+
+```{r, include=FALSE}
+# Tabela de frequência da variável Tipo de dor no peito (cp)
+tb_cp = rbind(tabFreqCat(heart$cp)); tb_cp
+```
+
+
+### Gáfico do Tipo de dor no peito 
+```{r}
+# Gráfico
+renderPlotly ({
+graf_cp <- ggplot(data = heart, 
+                    aes(x = cp)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "cp", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por CP")
+ggplotly(graf_cp)
+})
+```
+
+
+
+```{r, include=FALSE}
+# Tabela de frequência da variável açúcar no sangue em jejum & gt (fbs)
+tb_fbs = rbind(tabFreqCat(heart$fbs)); tb_fbs
+```
+
+
+### Gráfico da presença de açúcar no sangue
+```{r}
+# Gráfico
+renderPlotly ({
+graf_fbs <- ggplot(data = heart, 
+                    aes(x = fbs)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "fbs", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por fbs")
+ggplotly(graf_fbs)
+})
+```
+
+
+
+# Análise Descritiva das Variáveis Categóricas 2 {data-icon="fa-signal" data-navmenu="Análise Descritiva"}
+
+## Sidebar {.sidebar}
+
+**DESCREVENDO OS DADOS:**
+
+- Resultado da eletrocardiografia em repouso (restecg): 50,17% dos pacientes possuem onda ST-T anormal (1), 48,51% são normais (0), e 1,32% mostram provável (ou definida) hipertrofia do ventrículo esquerdo (2).
+
+- Angina induzida por exercício (exang): 67,33% dos pacientes não apresentaram angina induzida por exercício e 32,67%, sim.
+
+- Inclinação da extremidade do segmento ST no exercício (slope): 46,86% dos pacientes apresentaram inclinação para baixo (2), 46,2% apresentaram inclinação plana (1) e 6,93% apresentaram inclinação para cima (0).
+ 
+- Número de vasos coloridos pela fluoroscopia (ca): 57,76% dos pacientes não tiveram nenhum vaso colorido (0), 21,45% tiveram 1 vaso colorido, 12,54% tiveram 2 vasos coloridos, 6,6% tiveram 3 vasos coloridos e 1,65% tiveram 4 vasos coloridos.
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+ 
+
+```{r, include=FALSE}
+# Tabela de frequência da variável resultados eletrocardiográficos em repouso (restecg)
+tb_restecg = rbind(tabFreqCat(heart$restecg)); tb_restecg
+```
+
+
+### Gráfico do Resultado do eletrocardiograma em repouso
+
+```{r}
+# Gráfico
+renderPlotly ({
+graf_restecg <- ggplot(data = heart, 
+                   aes(x = restecg)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "restecg", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por restecg")
+ggplotly(graf_restecg)
+})
+```
+
+
+
+```{r, include=FALSE}
+# Tabela de frequência da variável angina induzida pelo exercício (exang)
+tb_exang = rbind(tabFreqCat(heart$exang)); tb_exang
+```
+
+### Gráfico da Angina induzida pelo exercício
+
+```{r}
+# Gráfico
+renderPlotly ({
+graf_exang <- ggplot(data = heart, 
+                       aes(x = exang)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "exang", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por exang")
+ggplotly(graf_exang)
+})
+```
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+
+```{r, include=FALSE}
+# Tabela de frequência da variável inclinação do segmento ST do pico do exercício (slope)
+tb_slope = rbind(tabFreqCat(heart$slope)); tb_slope
+```
+
+
+### Gráfico da Inclinação do segmento ST do pico do exercício
+
+```{r}
+# Gráfico
+renderPlotly ({
+graf_slope <- ggplot(data = heart, 
+                     aes(x = slope)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "slope", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por slope")
+ggplotly(graf_slope)
+})
+```
+
+
+
+```{r, include=FALSE}
+# Tabela de frequência da variável número de vasos principais (0-3) coloridos por flourosopy (ca)
+tb_ca = rbind(tabFreqCat(heart$ca)); tb_ca
+```
+
+
+### Gráfico do número de vasos principais coloridos por flourosopy
+
+```{r}
+# Gráfico 
+renderPlotly ({
+graf_ca <- ggplot(data = heart, 
+                     aes(x = ca)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "ca", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por ca")
+ggplotly(graf_ca)
+})
+```
+
+
+
+# Análise Descritiva das Variáveis Categóricas 3 {data-icon="fa-signal" data-navmenu="Análise Descritiva"}
+
+## Sidebar {.sidebar}
+
+**DESCREVENDO OS DADOS:**
+
+- Talassemias (Thal): 54,79% dos pacientes apresentam talassemia de nível 2; 38,61% de nível 3; 5,94% de nível 1 e; 0,66% não apresentam. 
+
+- Diagnóstico (target): 54,46% dos pacientes apresentam alguma doença do coração, ou seja, estão doentes e; 45,46% estão estão saudáveis.
+
+
+
+column {data-width=500}
+-----------------------------------------------------------------------
+ 
+
+```{r, include=FALSE}
+# Tabela de frequência da variável thal
+tb_thal = rbind(tabFreqCat(heart$thal)); tb_thal
+```
+
+
+### Gráfico da Talassemia
+
+```{r}
+# Gráfico 
+renderPlotly ({
+graf_thal <- ggplot(data = heart, 
+                  aes(x = thal)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "thal", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por Talassemias")
+ggplotly(graf_thal)
+})
+```
+
+
+column {data-width=500}
+-----------------------------------------------------------------------
+
+```{r, include=FALSE}
+# Tabela de frequência da variável objetivo (target)
+tb_target = rbind(tabFreqCat(heart$target)); tb_target
+```
+
+
+### Gráfico do Diagnóstico
+
+```{r}
+# Gráfico 
+renderPlotly ({
+graf_target <- ggplot(data = heart, 
+                    aes(x = target)) +
+          geom_bar(fill = "#00bfa5") + 
+          labs(x = "target", 
+               y = "Frequência absoluta", 
+               caption = "Fonte: kaggle") +
+          ggtitle("Contagem de pessoas por diagnóstico")
+ggplotly(graf_target)
+})
+```
+
+
+
+# Análise Descritiva das Variáveis numéricas 1 {data-icon="fa-signal" data-navmenu="Análise Descritiva"}
+
+## Sidebar {.sidebar}
+
+**DESCREVENDO OS DADOS NUMÉRICOS:**
+
+**ANALISANDO A PRESSÃO ARTERIAL POR SEXO E IDADE**
+
+
+- A maioria das pacientes do sexo feminino, dessa amostra, possui pressão arterial entre 120 e 150 e, do sexo masculino possui entre 120 e 140. Tendo uma paciente, chegado a pressão de 200. Os dados mostram que essas pacientes mulheres parecem possuir pressões mais altas que os homens. 
+
+- O Histograma de Pressão por Idade mostra que pessoas Idosas, também tendem a ter uma pressão mais elevada do que pessoas mais novas. A categoria adulto tende a possuir pressão arterial entre 110 e 140 e; pessoas idosas entre 120 e 150, também, porém podendo chegar a 200. 
+
+
+
+**ANALISANDO O COLESTEROL POR SEXO E IDADE**
+
+- O histograma de colesterol por sexo mostra que as pacientes mulheres possuem colesterol entre 200 e 270, em sua maioria; e os homens entre 200 e 250.
+
+- O histograma de colesterol por idade mostra a maior parte dos idosos possuem colesterol entre 200 e 290; e os adultos entre 200 e 270.
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+### Tabela da Pressão arterial em repouso
+
+```{r}
+# Tabela descritiva da variável pressão arterial em repouso (trestbps)
+tbtrestbps <- cbind(tabelaFreq(heart$trestbps))
+DT::datatable(tbtrestbps , options = list(pageLength = 5))
+```
+
+> Os pacientes possuem pressão arterial média de 131,62, com mediana igual a 130. Além disso, a pressão desses pacientes da amostra possuem um valor mínimo de 94 e máximo de 200.
+
+### Histograma Pressão arterial por Sexo
+
+```{r}
+# Histograma por sexo
+renderPlotly ({
+graf_trestbps <- heart %>%
+  filter( trestbps<300 ) %>%
+  ggplot( aes(x=trestbps, fill=sex)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  #scale_fill_manual(values=c("#404080", "#69b3a2")) +
+  ggtitle("Histograma Pressão Arterial por Sexo") +
+  
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_trestbps)
+})
+```
+
+### Histograma Pressão arterial por Idade
+
+```{r}
+# Histograma por Idade
+renderPlotly ({
+graf_trestbps2 <- heart %>%
+  filter( trestbps<300 ) %>%
+  ggplot( aes(x=trestbps, fill=Categ_Idade)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  #scale_fill_manual(values=c("#404080", "#69b3a2")) +
+  ggtitle("Histograma Pressão Arterial por Idade") +
+  
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_trestbps2)
+})
+```
+
+
+### Teste de Shapiro Wilk
+
+```{r}
+shapiro.test(heart$trestbps)
+
+```
+> Após fazermos o teste de Shapiro Wilk, verificamos que os dados de pressão arterial não possuem distribuição Normal.Adotamos um nível de significância de 5%.
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+### Tabela do Colesterol sérico
+
+```{r}
+tbchol <- cbind(tabelaFreq(heart$chol))
+DT::datatable(tbchol , options = list(pageLength = 5))
+```
+
+> Os pacientes possuem colesterol médio de 246,26, com mediana igual a 240. Além disso, o nível de colesterol desses pacientes da amostra possuem um valor mínimo de 126 e máximo de 564.
+
+### Histograma colesterol por Sexo
+
+```{r}
+# Histograma por sexo
+renderPlotly ({
+graf_chol <- heart %>%
+  filter( chol<300 ) %>%
+  ggplot( aes(x=chol, fill=sex)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  ggtitle("Histograma do nível de colesterol por sexo") +
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_chol)
+})
+```
+
+
+### Histograma colesterol por Idade
+
+```{r}
+# Histograma por Idade
+renderPlotly ({
+graf_chol2 <- heart %>%
+  filter( chol<300 ) %>%
+  ggplot( aes(x=chol, fill=Categ_Idade)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  ggtitle("Histograma do nível de colesterol por Idade") +
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_chol2)
+})
+```
+
+> Adicionar comentário
+
+### Teste de Shapiro Wilk para chol
+
+```{r}
+shapiro.test(heart$chol)
+```
+
+> Pelo teste de Shapiro Wilk, podemos afirmar que a distribuição desses dados, também, não é Normal.
+
+
+
+# Análise Descritiva das Variáveis numéricas 2 {data-icon="fa-signal" data-navmenu="Análise Descritiva"}
+
+## Sidebar {.sidebar}
+
+**ANALISANDO A FREQUÊNCIA CARDÍACA MÁXIMA POR SEXO E IDADE:**
+
+- O histograma de Frequência Cardíaca máxima por sexo mostra que as mulheres possuem uma frequência cardíaca entre 150 e 170. Já os homens possuem uma frequência cardíaca entre 140 e 170. As mulheres parecem possuir frequência cardíaca mámixa mai alta.
+
+- O histograma de Frequência Cardíaca por Idade mostra que a categoria adulto possui frequência cardíaca máxima mais alta com relação aos idosos. E o único jovem da amostra possui a frequência cardíaca máxima de 200, que é o valor mais alto da amostra.
+
+
+**ANALISANDO A DEPRESSÃO ST (INDUZIDA POR EXERCÍCIO) POR SEXO E IDADE:**
+
+- O histograma de depressão induzida por exercício, por sexo, mostra que mulheres e homens parecem possuir valores similares de depressão, que varia entre -5 e 5. Exceto por um outlier do sexo masculino que contém na amostra que ultrapassa esse valor, podendo chegar ao intervalo de 5 a 15.
+
+- O histograma de depressão induzida por exercício, por idade, mostra que mulheres e homens parecem possuir valores similares de depressão, que varia entre -5 e 5. Exceto por um outlier da categoria Idoso, que contém na amostra, e ultrapassa esse valor, podendo chegar ao intervalo de 5 a 15.
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+### Tabela de Frequência cardíaca máxima alcançada
+
+```{r}
+tbthalach <- cbind(tabelaFreq(heart$thalach)) 
+DT::datatable(tbthalach , options = list(pageLength = 5))
+```
+
+> Os pacientes possuem uma frequência cardíaca média de 149,65; com mediana de 153 e; frequência cardíaca mínima de 71 e máxima de 202.
+
+### Histograma Frequência cardíaca por Sexo
+
+```{r}
+# Histograma por Sexo
+renderPlotly ({
+graf_thalach <- heart %>%
+  filter( thalach<300 ) %>%
+  ggplot( aes(x=thalach, fill=sex)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  ggtitle("Histograma de Frequência Cardíaca por Sexo") +
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_thalach)
+})
+```
+
+
+### Histograma Frequência Cardíaca por Idade
+
+```{r}
+# Histograma por Idade
+renderPlotly ({
+graf_thalach2 <- heart %>%
+  filter( thalach<300 ) %>%
+  ggplot( aes(x=thalach, fill=Categ_Idade)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  ggtitle("Histograma de Frequência Cardíaca por Idade") +
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_thalach2)
+})
+```
+
+
+### Teste de Shapiro Wilk para thalach
+
+```{r}
+shapiro.test(heart$thalach)
+```
+
+> O teste de Shapiro Wilk mostra que os dados dessa variável não possui distribuição normal.
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+
+###Tabela da Depressão ST induzida por exercício em relação ao repouso
+
+```{r}
+tboldpeak <- cbind(tabelaFreq(heart$oldpeak)) 
+DT::datatable(tboldpeak , options = list(pageLength = 5))
+```
+
+> Os pacientes possuem uma Depressão ST induzida por exercício média de 1,04; com mediana de 0,8 e; mínima de 0 e máxima de 6,2.
+
+### Histograma Depressão ST induzida por Sexo
+
+```{r}
+# Histograma por sexo
+renderPlotly ({
+graf_oldpeak <- heart %>%
+  filter( oldpeak<300 ) %>%
+  ggplot( aes(x=oldpeak, fill=sex)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  ggtitle("Histograma da Depressão ST induzida por Sexo") +
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_oldpeak)
+})
+```
+
+
+### Histograma Depressão ST induzida por Idade
+
+```{r}
+# Histograma por Idade
+renderPlotly ({
+graf_oldpeak2 <- heart %>%
+  filter( oldpeak<300 ) %>%
+  ggplot( aes(x=oldpeak, fill=Categ_Idade)) +
+  geom_histogram( binwidth=10, color="#e9ecef", alpha=0.5, position = "identity") +
+  ggtitle("Histograma da Depressão ST induzida por Idade") +
+  theme(
+    plot.title = element_text(size=15)
+  )
+ggplotly(graf_oldpeak2)
+})
+```
+
+
+
+### Teste de Shapiro Wilk para oldpeak
+
+```{r}
+shapiro.test(heart$oldpeak)
+```
+
+> Os dados da variável oldpeak não são normais.
+
+
+# Verificando a influência das variáveis {data-icon="fa-signal" data-navmenu="Análise de Regressão Logística"}
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+### Ajustando o modelo com todas as variáveis
+
+```{r}
+target_logit <- glm(heart$target ~ heart$age + heart$sex + heart$cp 
+                    + heart$trestbps + heart$chol + heart$fbs + heart$restecg
+                    + heart$thalach + heart$exang + heart$oldpeak + heart$slope
+                    + heart$ca + heart$thal, data = heart, family = "binomial"); target_logit
+```
+
+> **REGRESSÃO LOGÍSTICA MÚLTIPLA**
+>
+"A técnica de regressão logística é uma ferramenta estatística utilizada nas análises preditivas. O interesse em mensurar a probabilidade de um evento ocorrer é extremamente relevante em diversas áreas...". Nesse estudo, gostaríamos de saber quais são os fatores que mais influenciam na presença de doenças do coração. 
+>
+**O MODELO**
+>
+O modelo de regressão logística é utilizado quando a variável dependente é binária. Então, primeiramente, verificamos que o tipo da variável resposta era uma binomial do tipo Saudável = 0 e Doente = 1. Para a estimação dos coeficientes das variáveis independentes, serão utilizados o valor logit. Então, o modelo inicial ficou assim:
+>
+Diagnóstico = 0.179045 + 0.027819 x Age - 1.862297 x (Sex=Homem) + 0.864708 x (CP=1) +  2.003186 x (CP=2) + 2.417107 x (CP=3) - 0.026162 x trestbps - 0.004291 x chol + 0.445666 x (fbs=verdadeiro) + 0.460582 x (restecg=1) - 0.714204 x (restecg=2) + 0.020055 x thalach - 0.779111 x (exang=Sim) - 0.397174 x oldpeak - 0.775084 x (slope=1) + 0.689965 x (slope=2) - 2.342301 x (ca=1) - 3.483178 x (ca=2) - 2.247144 x (ca=3) + 1.267961 x (ca=4) + 2.637558 x (thal=1) + 2.367747 x (thal=2) + 0.915115 x (thal=3)
+>
+
+>
+
+### Descrição do modelo 1
+
+```{r}
+summary(target_logit)
+```
+
+> **VARIÁVEIS SIGNIFICATIVAS**
+>
+Verificamos quais eram as variáveis mais siginificativas no modelo ao nível de significância de 5%, são elas: Sexo Masculino, o tipo de dor no peito (cp = 2 e 3, ou seja, sem dor anginal e assintomático), a pressão arterial medida em repouso e, o número de vasos principais coloridos por flourosopy (ca = 1, 2 e 3). 
+
+>
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+
+### Verificando o Ajuste do Modelo
+
+```{r}
+confint(target_logit)
+# Deviance: 179.3269
+target_logit$deviance
+
+d_critico = qchisq(0.95,df=target_logit$df.residual); d_critico
+
+# Como o valor da deviance é menor que o valor critico temos que o modelo esta bem ajustado.
+```
+
+> **AJUSTE DO MODELO**
+>
+A deviance do modelo foi de 179,6307 e foi menor que o valor do quiquadrado que foi de 320,0278. Portanto, ao nível de significância de 5%, podemos dizer que o modelo está bem ajustado.
+>
+Acima, também podemos observar os intervalos de confiança dos coeficientes estimados das variáveis explicativas. Os intervalos que não passam pelo zero são os das variáveis significativas. E podemos ver que são exatamente as mesmas variáveis significativas que descrevemos, anteriormente.
+
+>
+
+### Teste Hosmer-Lemeshow
+
+```{r}
+# Teste Hosmer-Lemeshow: Como o p-valor foi menor que 0,05, rejeita-se a hipótese  
+# de que as proporções observadas e esperadas são as mesmas ao longo da amostra, o modelo está mal ajustado.
+hoslem.test(heart$target, fitted(target_logit), g=10)
+```
+
+> **TESTE DE HOSMER-LEMESHOW**
+>
+O teste de Hosmer-Lemeshow é para verificar se as proporções observadas e esperadas são as mesmas ao longo da amostra. Como o p-valor foi menor que 0,05, rejeita-se a hipótese nula, ou seja, o modelo está tendo problemas.
+
+>
+
+# Encontrando o melhor modelo {data-icon="fa-signal" data-navmenu="Análise de Regressão Logística"}
+
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+
+### Método Stepwise
+
+```{r}
+# Método Stepwise: Quanto menor o AIC, melhor o ajuste do modelo.
+step(target_logit, direction = 'both')
+```
+
+> **MÉTODO STEPWISE**
+>
+O método Stepwise nos auxilia a selecionar as variáveis mais importantes para nosso modelo. *Este método, por sua vez, utiliza o Critério de Informação de Akaike (AIC - Akaike Information Criterion) na combinação das variáveis dos diversos modelos simulados para selecionar o modelo mais ajustado. Quanto menor o AIC, melhor o ajuste do modelo.* Utilizaremos neste modelo a direção *both*. 
+>
+> **ENCONTRANDO O MELHOR MODELO**
+>
+Após analisarmos os AIC's, escolhemos o menor para usar, com valor de 219,8 e Residual Deviance de 185.8. Daí, o novo modelo ficou assim:
+>
+Diagnóstico = 3.30454 - 1.63154 x (sex = Homem) + 1.03058 x (CP=1) +  2.22015 x (CP=2) + 2.55944 x (CP=3) - 0.02211 x trestbps - 0.85234 x (exang=Sim) - 0.47970 x oldpeak - 0.90675 x (slope=1) + 0.70078 x (slope=2) - 2.35513 x (ca=1) - 3.10939 x (ca=2) - 2.26756 x (ca=3) + 1.23217 x (ca=4) + 2.62410 x (thal=1) + 2.36301 x (thal=2) + 0.91673 x (thal=3)
+
+>
+
+### Melhor modelo
+
+```{r}
+# Melhor modelo:
+modelo = glm(heart$target ~ heart$sex + heart$cp + heart$trestbps + heart$exang + 
+  heart$oldpeak + heart$slope + heart$ca + heart$thal, data = heart, family = "binomial"); modelo
+```
+
+
+column {data-width=500} {.tabset}
+-----------------------------------------------------------------------
+
+
+### Calculando a Razão de chances (odds ratio - OR)
+
+```{r}
+# Calculando a Razão de chances (odds ratio - OR)
+stargazer(modelo, title="Resultados",type = "text")
+logitor(heart$target ~ heart$sex + heart$cp + heart$trestbps + heart$exang + 
+          heart$oldpeak + heart$slope + heart$ca + heart$thal,data=heart)
+exp(coef(modelo))
+```
+
+> **RAZÃO DE CHANCE**
+>
+Observa-se que os valores estimados mostram os coeficientes em formato logarítmo de chances. Sendo assim, devemos efetuar uma exponenciação das variáveis estimadas do modelo.
+>
+Então o modelo ficará assim:
+>
+Diagnóstico = 27.2359 + 0.1956 x (sex = Homem) + 2.8027 x (CP=1) +  9.2087 x (CP=2) + 12.9286 x (CP=3) + 0.9781 x trestbps + 0.4264 x (exang=Sim) + 0.619 x oldpeak + 0.4038 x (slope=1) + 2.0153 x (slope=2) + 0.0949 x (ca=1) + 0.0446 x (ca=2) + 0.1035 x (ca=3) + 3.4287 x (ca=4) + 13.7921 x (thal=1) + 10.6228 x (thal=2) + 2.5011 x (thal=3)
+
+> **INTERPRETAÇÃO**
+>
+- Sendo do sexo masculino, diminuem-se as chances em 80,44% de o paciente possuir doenças do coração;
+- Tendo angina atípica, aumentam-se as  chances em 180% de o paciente possuir doenças do coração;
+- Não tendo dor anginal, aumentam-se as chances em 821% de o paciente possuir doenças do coração;
+- Sendo assintomático com relação à dor no peito, aumentam-se as chances em 1293%% de o paciente possuir doenças do coração;
+- Para uma alteração em 1 unidade na pressão arterial em repouso, a chance de que o paciente tenha doenças do coração diminui em 2,19%;
+- Para quem tem angina induzida pelo exercício, diminuem-se as chances em 57,36% de o paciente possuir doenças do coração;
+- Para uma alteração em 1 unidade na Depressão ST induzida por exercício, a chance de que o paciente tenha doenças do coração diminui em 38,1%;
+- Para quem tem inclinação do segmento ST plana, diminuem-se as chances em 59,62% de o paciente possuir doenças do coração;
+- Para quem tem inclinação do segmento ST para baixo, aumentam-se as chances em 102% de o paciente possuir doenças do coração;
+- Para quem tem número de vasos principais coloridos por flourosopy iguais a 1, diminuem-se as chances em 90,51% de o paciente possuir doenças do coração;
+- Para quem tem número de vasos principais coloridos por flourosopy iguais a 2, diminuem-se as chances em 95,54% de o paciente possuir doenças do coração;
+- Para quem tem número de vasos principais coloridos por flourosopy iguais a 3, diminuem-se as chances em 89,65% de o paciente possuir doenças do coração;
+- Para quem tem número de vasos principais coloridos por flourosopy iguais a 4, aumentam-se as chances em 243% de o paciente possuir doenças do coração;
+- Para quem possui Talassemias iguais a 1, aumentam-se as chances em 1280% de o paciente possuir doenças do coração;
+- Para quem possui Talassemias iguais a 2, aumentam-se as chances em 962% de o paciente possuir doenças do coração;
+- Para quem possui Talassemias iguais a 3, aumentam-se as chances em 150% de o paciente possuir doenças do coração;
+
+> Portanto, as variáveis que influenciam no aumento de doenças do coração são: 
+>
+- CP: O tipo de dor no peito 1, 2 e 3;
+- slope: a inclinação do segmento ST do pico do exercício do tipo 2;
+- ca: o número de vasos principais coloridos por flourosopy igual a 4;
+- thal: Talassemias tipo 1, 2 e 3.
+
+>
+
+
+### Verificando Multicolinearidade e se o modelo está bem ajustado
+
+```{r}
+# Verificando Multicolinearidade (relação entre as variáveis do modelo), índice não deve estar abaixo de 10.
+vif(modelo) # O modelo não possui multicolinearidade.
+# Deviance: 
+target_logit$deviance
+
+d_critico = qchisq(0.95,df=target_logit$df.residual); d_critico
+
+# Como o valor da deviance é menor que o valor critico temos que o modelo esta bem ajustado.
+```
+
+> **MULTICOLINEARIDADE**
+
+> Para finalizar, verificamos se existia alguma relação entre as variavéis explicativas. E concluímos que não, pois todos os índices foram superiores a 10. Portanto, as variáveis não são colineares.
+>
+A deviance do modelo foi de 179,6307 e o valor crítico do teste de quiquadrado foi de 320,0278. Como a deviance foi menor que o valor crítico, temos que o modelo está bem ajustado.
+
+>
