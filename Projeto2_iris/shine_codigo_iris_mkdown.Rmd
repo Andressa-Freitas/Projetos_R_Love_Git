@@ -1,0 +1,436 @@
+---
+title: "Dashboard Análise Íris"
+author: "Andressa de Souza Freitas"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    source_code: embed
+    social: [ "linkedin" ]
+    navbar:
+      - {title: "Linkedin", href: "https://www.linkedin.com/in/andressa-de-souza-freitas-697195177/",           align: rigth }
+    theme: journal
+runtime: shiny
+---
+
+```{r setup, include=FALSE}
+###################### SEGUNDA ETAPA DO PROCESSO SELETIVO DA OPER DATA #################################
+############ Análise Descritiva e Teste de Kruskal-Wallis do banco de dados "Íris" #####################
+
+#####################################################
+# Descrição das variáveis do banco de dados "Íris":
+#####################################################
+
+# sepal_length: tamanho da sépala em cm;
+# sepal_width: largura da sépala em cm;
+# petal_length: tamanho da pétala em cm;
+# petal_width: largura da pétala em cm;
+# species: espécies setosa, versicolor e virginica.
+
+
+# Mudando o Diretório de trabalho
+setwd("C:/Users/Andressa/Desktop/TRABALHO/PROJETOS/PORTIFÓLIO/Análise_Íris")
+
+# Instalando os pacotes para o projeto
+
+listofPackages <- c("dplyr", "stringr", "lubridate", "ggplot2","ggthemes", "tidyr", "readr", "tidyverse",
+                    "data.table", "Amelia", "caret", "reshape", "randomForest", "e1071", "DT", "plyr", "PMCMR",
+                    "flexdashboard", "plotly", "Hmisc", "dplyr")
+
+packages <- function(listofPackages){
+  new.packages <- listofPackages[!(listofPackages %in% installed.packages()[, "Package"])]
+  if (length(new.packages))
+    install.packages(new.packages, dependencies = TRUE)
+  sapply(listofPackages, require, character.only = TRUE)	
+}
+
+lapply(listofPackages, library, character.only = TRUE)
+packages(listofPackages)
+
+# Carregando os pacotes
+
+lapply(listofPackages, require, character.only = TRUE)
+
+
+# Importando o banco de dados
+iris <- fread("iris.csv", head = T, sep = ",", dec=".", encoding = 'UTF-8')
+```
+
+
+
+# Medidas da Sépala por Espécie {data-icon="fa-signal" data-navmenu="Análises"}
+
+## Sidebar {.sidebar}
+
+**INTRODUÇÃO**
+
+Foi feita uma análise no banco de dados íris. O objetivo era saber se existe diferença no tamanho da sépala (sepal_length, sepal_width) e da pétala (petal_length, petal_width) entre as espécies (species) de íris: Setosa, Virgínica e Versicolor. 
+
+Descrição das variáveis do banco de dados "Íris":
+
+- sepal_length: tamanho da sépala em cm;
+- sepal_width: largura da sépala em cm;
+- petal_length: tamanho da pétala em cm;
+- petal_width: largura da pétala em cm;
+- species: espécies setosa, versicolor e virginica.
+
+O banco possui 150 observações e 5 variáveis.
+
+**ANÁLISE DO TAMANHO DAS SÉPALAS POR ESPÉCIE**
+
+Os gráficos de boxplot ao lado descreve o comprimento e a largura das sépalas por espécie. Nota-se que:
+
+- A setosa tem um comprimento mediano em torno de 5 cm e uma largura mediana em torno de 3,4 cm;
+- A versicolor tem um comprimento mediano em torno de 5,9 cm e uma largura mediana em torno de 2,75 cm;
+- A virgínica tem um comprimento mediano em torno de 6,4 cm e uma largura mediana em torno de 3 cm.
+
+Parece haver diferença entre os tamanhos das sépalas de acordo com a espécie.
+
+
+## column {data-width=200}
+-----------------------------------------------------------------------
+
+### Boxplot do comprimento da Sépala
+```{r}
+# Comprimento da Sépala (sepal_length) - Boxplot
+renderPlotly ({
+boxSepal1 <- iris %>%
+  mutate(species = fct_reorder(species, sepal_length, .fun='median')) %>%
+  ggplot(aes(x=reorder(species, sepal_length), y= sepal_length)) + 
+  geom_boxplot(aes(x=species, y=sepal_length, fill=species)) +
+  labs(x = "Espécies", 
+       y = "Comprimento da sépala", 
+       caption = "Fonte: github") +
+  ggtitle("Comprimento das Sépalas por Espécie") +
+  theme(legend.position="none") +
+  xlab("")
+ggplotly(boxSepal1)  
+})
+```
+
+
+### Boxplot da largura da sépala
+```{r}
+# Largura da Sépala (sepal_width) - Boxplot
+renderPlotly ({
+boxSepal2 <- iris %>%
+  mutate(species = fct_reorder(species, sepal_width, .fun='median')) %>%
+  ggplot(aes(x=reorder(species, sepal_width), y= sepal_width)) + 
+  geom_boxplot(aes(x=species, y=sepal_width, fill=species)) +
+  labs(x = "Espécies", 
+       y = "Largura da sépala", 
+       caption = "Fonte: github") +
+  ggtitle("Largura das Sépalas por Espécie") +
+  theme(legend.position="none") +
+  xlab("")
+ggplotly(boxSepal2)
+})
+```
+
+
+
+# Medidas da Pétala por Espécie {data-icon="fa-signal" data-navmenu="Análises"}
+
+## Sidebar {.sidebar}
+
+**ANÁLISE DO TAMANHO DAS PÉTALAS POR ESPÉCIE**
+
+Os gráficos de boxplot ao lado descreve o comprimento e a largura das pétalas por espécie. Nota-se que:
+
+- A setosa tem um comprimento mediano em torno de 1,6 cm e uma largura mediana em torno de 0,3 cm;
+- A versicolor tem um comprimento mediano em torno de 4,2 cm e uma largura mediana em torno de 1,25 cm;
+- A virgínica tem um comprimento mediano em torno de 5,5 cm e uma largura mediana em torno de 2 cm.
+
+Parece haver diferença entre os tamanhos das pétalas de acordo com a espécie. E a mais distinta parece ser a setosa.
+
+
+## column {data-width=200}
+-----------------------------------------------------------------------
+
+### Boxplot do comprimento da Pétala
+```{r}
+# Comprimento da Pétala (petal_length) - Boxplot
+renderPlotly ({
+boxPetal1 <-iris %>%
+  mutate(species = fct_reorder(species, petal_length, .fun='median')) %>%
+  ggplot(aes(x=reorder(species, petal_length), y= petal_length)) + 
+  geom_boxplot(aes(x=species, y=petal_length, fill=species)) +
+  labs(x = "Espécies", 
+       y = "Comprimento da pétala", 
+       caption = "Fonte: github") +
+  ggtitle("Comprimento das pétalas por Espécie") +
+  theme(legend.position="none") +
+  xlab("")
+ggplotly(boxPetal1)
+})
+```
+
+
+### Boxplot da largura da Pétala
+```{r}
+# Largura da Pétala (petal_width) - Boxplot
+renderPlotly ({
+boxPetal2 <-iris %>%
+  mutate(species = fct_reorder(species, petal_width, .fun='median')) %>%
+  ggplot(aes(x=reorder(species, petal_width), y= petal_width)) + 
+  geom_boxplot(aes(x=species, y=petal_width, fill=species)) +
+  labs(x = "Espécies", 
+       y = "Largura da pétala", 
+       caption = "Fonte: github") +
+  ggtitle("Largura das pétalas por Espécie") +
+  theme(legend.position="none") +
+  xlab("")
+ggplotly(boxPetal2)
+})
+```
+
+
+
+# Comparando as espécies {data-icon="fa-signal" data-navmenu="Análises"}
+
+## Sidebar {.sidebar}
+
+**VISUALIZAÇÃO DOS GRUPOS DE ESPÉCIES**
+
+Conforme podemos observar nos gráficos de pontos ao lado, realmente parece haver diferença entre os 3 tipos de íris de acordo com o tamanho de suas sépalas e pétalas. E para verificar essa hipótese, precisamos saber se os dados possuem distribuição Normal ou não. 
+
+
+## column {data-width=200}
+-----------------------------------------------------------------------
+
+### Gráfico de pontos comparando as pétalas
+```{r}
+# Tamanho das petalas
+renderPlotly ({
+petala = ggplot(data = iris) +
+  aes(x = petal_width, y = petal_length, color = species) +
+  geom_point() +
+  theme_minimal() +
+  ggtitle("Comparando os grupos por pétala")
+ggplotly(petala)
+})
+```
+
+
+### Gráfico de pontos comparando as sépalas
+```{r}
+# Tamanho da sépalas
+renderPlotly ({
+sepala = ggplot(data = iris) +
+  aes(x = sepal_width, y = sepal_length, color = species) +
+  geom_point() +
+  theme_minimal() +
+  ggtitle("Comparando os grupos por sépala")
+ggplotly(sepala)
+})
+```
+
+
+
+# Testes Estatísticos {data-icon="fa-signal" data-navmenu="Análises" data-orientation=columns}
+
+## Sidebar {.sidebar}
+
+**TESTE DE NORMALIDADE**
+
+Após fazer o teste de Shapiro Wilk, concluímos ao nível de significância de 5% que os dados não são normais, exceto os dados da variável largura da sépala (p-valor foi de 0,075). Então, faremos o teste de Kruskal Wallis para verificar as hipóteses. 
+
+**TESTE DE KRUSKAL-WALLIS**
+
+"O teste de Kruskal-Wallis permite realizar a comparação de três ou mais grupos em amostras independentes."
+
+As hipóteses são: 
+
+- H0: As três espécies de íris são iguais.
+- H1: Pelo menos uma delas é diferente.
+
+Em todos os testes, a hipótese nula foi rejeitada ao nível de significância de 5%, ou seja, pelo menos uma das espécies de íris é diferente das outras. 
+
+**TESTE DE NEMENYI**
+
+Portanto, devemos fazer o Teste de comparação múltipla de Nemenyi para verificar qual das espécies que diferem entre si.
+
+"O teste de Nemenyi (Nemenyi, 1963) é um teste post-hoc, ou seja, é um teste de comparação múltipla que é usado após a aplicação de teste não paramétricos com três ou mais fatores, como por exemplo, o teste de Kruskal-Wallis." (Oper Data, POR BRUNO OLIVEIRA, Artigo desenvolvido com a colaboração de Bruna Faria, 3 DE MARÇO DE 2020)
+
+
+column {data-width=350}
+-----------------------------------------------------------------------
+
+### Teste de Shapiro Wilk
+```{r}
+# Teste de Normalidade
+shapiro.test(iris$sepal_length) # Dados não normais
+shapiro.test(iris$sepal_width) # Dados normais ao nível de significância de 5%
+shapiro.test(iris$petal_length) # Dados não normais
+shapiro.test(iris$petal_width) # Dados
+```
+
+
+column {data-width=650}
+-----------------------------------------------------------------------
+
+### Teste de Kruskal-Wallis
+```{r}
+################################### Teste de Kruskal-Wallis ##########################################
+
+# As medianas dos grupos de espécies aparentam ser diferentes, mas para comprovar iremos utilizar um teste estatístico.
+# Como os dados não são normais, será aplicado um teste não-paramétrico para comparar os grupos.
+# Hipóteses -> H0: Não existe diferença entre as medianas
+#              H1: Pelo menos uma das medianas é diferente 
+##############################################################################################################
+
+# Verificando se há diferença significativa do comprimento das sépalas entre as espécies
+kruskal.test(iris$sepal_length ~ factor(iris$species)) # Rejeita H0
+```
+
+
+```{r}
+# Verificando se há diferença significativa do largura das sépalas entre as espécies
+kruskal.test(iris$sepal_width ~ factor(iris$species)) # Rejeita H0
+```
+
+
+```{r}
+## Verificando se há diferença significativa do comprimento das pétalas entre as espécies
+kruskal.test(iris$petal_length ~ factor(iris$species)) # Rejeita H0
+```
+
+
+```{r}
+## Verificando se há diferença significativa da largura das pétalas entre as espécies
+kruskal.test(iris$petal_width ~ factor(iris$species)) # Rejeita H0
+```
+> Rejeita-se a hipótese nula para todos os testes de Kruskal-Wallis.
+>
+>
+>
+
+# Testes Estatísticos {data-icon="fa-signal" data-navmenu="Análises"}
+
+## Sidebar {.sidebar}
+
+**RESULTADOS**
+
+Após fazermos o teste de Nemenyi, pudemos concluir que todas as espécies se diferem entre si. Rejeitamos a H0 em todos os testes, ao nível de significância de 5%. 
+
+**CONCLUSÃO**
+
+Podemos concluir então que, apesar de todas as espécies serem diferentes umas das outras, a setosa é a que mais se difere das outras duas. As espécies virgínica e versicolor são mais similares com relação ao tamanho das sépalas.
+
+
+row {data-height=500}
+-----------------------------------------------------------------------
+
+### Teste de comparação múltipla de Nemenyi 1
+```{r}
+# Teste de comparação múltipla de Nemenyi
+posthoc.kruskal.nemenyi.test(iris$sepal_length ~ factor(iris$species)) # Rejeita-se H0
+```
+
+
+### Teste de comparação múltipla de Nemenyi 2
+```{r}
+# Teste de comparação múltipla de Nemenyi
+posthoc.kruskal.nemenyi.test(iris$sepal_width ~ factor(iris$species)) # Rejeita-se H0
+
+```
+
+
+row {data-height=500}
+-----------------------------------------------------------------------
+
+### Teste de comparação múltipla de Nemenyi 3
+```{r}
+# Teste de comparação múltipla de Nemenyi 
+posthoc.kruskal.nemenyi.test(iris$petal_length ~ factor(iris$species)) # Rejeita-se H0
+
+```
+
+
+### Teste de comparação múltipla de Nemenyi 4
+```{r}
+# Teste de comparação múltipla de Nemenyi
+posthoc.kruskal.nemenyi.test(iris$petal_width ~ factor(iris$species)) # Rejeita-se H0
+
+```
+
+
+
+# Tabelas {data-icon="fa-table" data-orientation=columns data-navmenu="Análises"}
+
+## Sidebar {.sidebar}
+
+**TABELAS**
+
+As tabelas ao lado representam a frequência das espécies e uma análise descritiva geral do banco com relação ao tamanho das pétalas como um todo. Sendo que:
+
+- 1 = comprimento da sépala; 
+- 2 = largura da sépala;
+- 3 = comprimento da pétala; 
+- 4 = largura da pétala.
+
+Também, possui o banco de dados utilizado em formato de tabela interativa, que pode ser filtrado conforme o usuário desejar.
+>
+>
+>
+>
+>
+Referenciais utilizados neste prjeto:
+https://rpubs.com/AnanyaDu/361293#:~:text=Iris%20Dataset%20%2D%20Clustering%20using%20K%20means&text=The%20Iris%20dataset%20contains%20the,for%20each%20of%20the%20flowers
+https://smolski.github.io/livroavancado/analise-de-clusters.html
+https://operdata.com.br/blog/teste-de-kruskal-wallis-e-o-teste-de-nemenyi/
+Material da Comunidade R-ladies
+
+Column {data-width=500}
+-----------------------------------------------------------------------
+
+### Análise Exploratória - Tabela Descritiva
+```{r}
+# Tabelas de Frequência
+
+# Tabela Descritiva
+tabelaFreq <- function(x){
+  
+  tabela = data.frame(Minimo = quantile(x)[1],
+                      Quartil1 = quantile(x)[2],
+                      Quartil2 = quantile(x)[3],
+                      Media = round(mean(x), 2),
+                      Desvio = round(sd(x), 2),
+                      Quartil3 = quantile(x)[4],
+                      Maximo = quantile(x)[5],
+                      row.names = NULL)
+  
+  return(tabela)
+}
+
+td = rbind(tabelaFreq(iris$sepal_length), tabelaFreq(iris$sepal_width), 
+      tabelaFreq(iris$petal_length), tabelaFreq(iris$petal_width))
+
+DT::datatable(td, options = list(pageLength = 5))
+```
+
+
+### Análise Exploratória - Tabela de frequência
+```{r}
+# Tabela de frequência
+tabFreqCat <- function(x){
+  a = table(x)
+  b = round(prop.table(a) *100, 2)
+  
+  return(b)
+}
+
+tf = rbind(tabFreqCat(iris$species))
+
+DT::datatable(tf, options = list(pageLength = 5))
+```
+
+
+Column {data-width=500}
+----------------------------------------------------
+### Banco de Dados Original (Íris) 
+
+```{r}
+DT::datatable(iris[1:100, c(5, 1:4)], rownames = FALSE)
+```
+
